@@ -9,6 +9,10 @@ set -uo pipefail
 REMOTE_PATH="hisbackups:/Gaza/openmrs_backups"
 ALERT_SUBJECT_DATE_FORMAT="+%Y-%m-%d"
 AGE_THRESHOLD_DAYS=7
+EMAIL_FROM="agnaldosamuel@ccsaude.org.mz"
+EMAIL_TO="agnaldosamuel@ccsaude.org.mz"
+REPORT_TXT="backup_monitor_report.txt"
+REPORT_CSV="backup_monitor_report.csv"
 
 DATE_BIN="date"
 OS_NAME=$(uname -s 2>/dev/null || echo "")
@@ -38,11 +42,26 @@ FORMAT="%-15s | %-16s | %-46s | %s"
 SEPARATOR="--------------------------------------------------------------------------------------"
 TABLE_LINES=()
 ALERTS=()
+CSV_LINES=("District,Health Facility,File name,Last Backup Date")
 
 printf -v HEADER "$FORMAT" "District" "Health Facility" "File name" "Last Backup Date"
 TABLE_LINES+=("$HEADER" "$SEPARATOR")
 
 shopt -s nocasematch  # Case-insensitive matching for file extensions.
+
+csv_quote() {
+  local value=$1
+  value=${value//\"/\"\"}
+  printf '"%s"' "$value"
+}
+
+append_csv_line() {
+  local district=$1
+  local facility=$2
+  local filename=$3
+  local backup_date=$4
+  CSV_LINES+=("$(csv_quote "$district"),$(csv_quote "$facility"),$(csv_quote "$filename"),$(csv_quote "$backup_date")")
+}
 
 list_entries() {
   local path=$1
@@ -81,6 +100,7 @@ for district_entry in "${DISTRICTS[@]}"; do
     printf -v line "$FORMAT" "$district" "-" "No backup found" "No backup found"
     TABLE_LINES+=("$line")
     ALERTS+=("No health facilities found in ${district}; no backups to report.")
+    append_csv_line "$district" "-" "No backup found" "No backup found"
     continue
   fi
 
@@ -96,6 +116,7 @@ for district_entry in "${DISTRICTS[@]}"; do
       ALERTS+=("Failed to access backups for ${district}/${facility}: ${err_msg}")
       printf -v line "$FORMAT" "$district" "$facility" "No backup found" "No backup found"
       TABLE_LINES+=("$line")
+      append_csv_line "$district" "$facility" "No backup found" "No backup found"
       continue
     fi
     err_msg=$(<"$files_err")
@@ -122,6 +143,7 @@ for district_entry in "${DISTRICTS[@]}"; do
       printf -v line "$FORMAT" "$district" "$facility" "No backup found" "No backup found"
       TABLE_LINES+=("$line")
       ALERTS+=("No backups found in ${district}/${facility}.")
+      append_csv_line "$district" "$facility" "No backup found" "No backup found"
       continue
     fi
 
@@ -155,10 +177,13 @@ for district_entry in "${DISTRICTS[@]}"; do
 
     printf -v line "$FORMAT" "$district" "$facility" "$latest_name" "$backup_date"
     TABLE_LINES+=("$line")
+    append_csv_line "$district" "$facility" "$latest_name" "$backup_date"
   done
 done
 
 printf "%s\n" "${TABLE_LINES[@]}"
+printf "%s\n" "${TABLE_LINES[@]}" >"$REPORT_TXT"
+printf "%s\n" "${CSV_LINES[@]}" >"$REPORT_CSV"
 
 shopt -u nocasematch
 
