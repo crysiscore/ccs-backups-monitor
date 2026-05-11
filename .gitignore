@@ -1,2 +1,9 @@
-*.csv
-*.txt
+# Generated reports and redirected script output
+backup_monitor_report.*
+backup_monitor_table.txt
+
+# Generated working/output directories
+output/
+
+# Local OS files
+.DS_Store
